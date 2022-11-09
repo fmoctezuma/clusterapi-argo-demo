@@ -1,0 +1,3 @@
+cluster:
+  name: capi-eks
+  version: v1.22.6
