@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: eks-cluster
+  namespace: argocd
+spec:
+  destination:
+    name: ''
+    namespace: ''
+    server: 'https://k8s.capi-manager.kaas-demo.rpc.rackspace.com'
+  source:
+    path: aws
+    repoURL: 'https://github.com/fmoctezuma/arlon_workspace.git'
+    targetRevision: HEAD
+  project: default
+  syncPolicy:
+    automated:
+      prune: true
+      allowEmpty: true
