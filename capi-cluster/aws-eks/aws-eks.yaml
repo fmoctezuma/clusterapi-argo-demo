@@ -34,7 +34,7 @@ metadata:
   namespace: default
 spec:
   clusterName: capi-eks
-  replicas: 2
+  replicas: 1
   template:
     spec:
       bootstrap:
