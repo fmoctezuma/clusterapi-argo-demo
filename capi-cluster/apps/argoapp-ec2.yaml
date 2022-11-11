@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ec2-cluster
+  namespace: argocd
+spec:
+  destination:
+    name: ''
+    namespace: ''
+    server: 'https://kubernetes.default.svc'
+  source:
+    path: capi-cluster/aws-ec2
+    repoURL: 'https://github.com/fmoctezuma/clusterapi-argo-demo.git'
+    targetRevision: HEAD
+  project: clusterapi
+  syncPolicy:
+    automated:
+      prune: true
+      allowEmpty: true
