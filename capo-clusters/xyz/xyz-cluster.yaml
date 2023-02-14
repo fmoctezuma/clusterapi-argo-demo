@@ -1,0 +1,196 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: xyz
+  namespace: default
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 192.168.0.0/16
+    serviceDomain: cluster.local
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: KubeadmControlPlane
+    name: xyz-control-plane
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha5
+    kind: OpenStackCluster
+    name: xyz
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha5
+kind: OpenStackCluster
+metadata:
+  name: xyz
+  namespace: default
+spec:
+  bastion:
+    enabled: true
+    instance:
+      flavor: capi-manager-mk8s-small
+      image: ubuntu-2004-kube-v123
+      sshKeyName: rpc_support
+  apiServerLoadBalancer:
+    enabled: true
+  cloudName: openstack
+  dnsNameservers:
+  - 8.8.8.8
+  externalNetworkId: d2674758-a4f4-424a-a8be-3089de29af7c
+  identityRef:
+    kind: Secret
+    name: xyz-cloud-config
+  managedSecurityGroups: true
+  nodeCidr: 10.6.0.0/24
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlane
+metadata:
+  name: xyz-control-plane
+  namespace: default
+spec:
+  kubeadmConfigSpec:
+    clusterConfiguration:
+      apiServer:
+        extraArgs:
+          cloud-config: /etc/kubernetes/cloud.conf
+          cloud-provider: openstack
+        extraVolumes:
+        - hostPath: /etc/kubernetes/cloud.conf
+          mountPath: /etc/kubernetes/cloud.conf
+          name: cloud
+          readOnly: true
+      controllerManager:
+        extraArgs:
+          cloud-config: /etc/kubernetes/cloud.conf
+          cloud-provider: openstack
+        extraVolumes:
+        - hostPath: /etc/kubernetes/cloud.conf
+          mountPath: /etc/kubernetes/cloud.conf
+          name: cloud
+          readOnly: true
+        - hostPath: /etc/certs/cacert
+          mountPath: /etc/certs/cacert
+          name: cacerts
+          readOnly: true
+      imageRepository: k8s.gcr.io
+    files:
+    - contentFrom: 
+        secret:
+          key: cloud.conf
+          name: xyz-cloud-config
+      owner: root
+      path: /etc/kubernetes/cloud.conf
+      permissions: "0600"
+    - contentFrom: 
+        secret:
+          key: cacert
+          name: xyz-cloud-config
+      owner: root
+      path: /etc/certs/cacert
+      permissions: "0600"
+    initConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+          cloud-config: /etc/kubernetes/cloud.conf
+          cloud-provider: openstack
+        name: '{{ local_hostname }}'
+    joinConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+          cloud-config: /etc/kubernetes/cloud.conf
+          cloud-provider: openstack
+        name: '{{ local_hostname }}'
+  machineTemplate:
+    infrastructureRef:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha5
+      kind: OpenStackMachineTemplate
+      name: xyz-control-plane
+  replicas: 1
+  version: v1.23.10
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha5
+kind: OpenStackMachineTemplate
+metadata:
+  name: xyz-control-plane
+  namespace: default
+spec:
+  template:
+    spec:
+      cloudName: openstack
+      flavor: capi-manager-mk8s-medium
+      identityRef:
+        kind: Secret
+        name: xyz-cloud-config
+      image: ubuntu-2004-kube-v123
+      sshKeyName: rpc_support
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: xyz-md-0
+  namespace: default
+spec:
+  clusterName: xyz
+  replicas: 1
+  selector:
+    matchLabels: null
+  template:
+    spec:
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: xyz-md-0
+      clusterName: xyz
+      failureDomain: nova
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha5
+        kind: OpenStackMachineTemplate
+        name: xyz-md-0
+      version: v1.23.10
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha5
+kind: OpenStackMachineTemplate
+metadata:
+  name: xyz-md-0
+  namespace: default
+spec:
+  template:
+    spec:
+      cloudName: openstack
+      flavor: capi-manager-mk8s-medium
+      identityRef:
+        kind: Secret
+        name: xyz-cloud-config
+      image: ubuntu-2004-kube-v123
+      sshKeyName: rpc_support
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: xyz-md-0
+  namespace: default
+spec:
+  template:
+    spec:
+      files:
+      - contentFrom:
+          secret:
+            key: cloud.conf
+            name: xyz-cloud-config   
+        owner: root
+        path: /etc/kubernetes/cloud.conf
+        permissions: "0600"
+      - contentFrom:
+          secret:
+            key: cacert
+            name: xyz-cloud-config
+        owner: root
+        path: /etc/certs/cacert
+        permissions: "0600"
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            cloud-config: /etc/kubernetes/cloud.conf
+            cloud-provider: openstack
+          name: '{{ local_hostname }}'
